@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>🎵 Groovepad</title>
+  <link rel="stylesheet" href="style.css" />
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,700;1,400&family=DM+Mono:wght@400;500&family=Outfit:wght@300;400;600&display=swap" rel="stylesheet"/>
+</head>
+<body>
+
+  <!-- Animated gradient background blobs — colours change per playlist via JS -->
+  <div class="bg-blob blob1"></div>
+  <div class="bg-blob blob2"></div>
+  <div class="bg-blob blob3"></div>
+
+  <!-- Floating decorative music doodles -->
+  <div class="doodle d1">♪</div>
+  <div class="doodle d2">♫</div>
+  <div class="doodle d3">◉</div>
+  <div class="doodle d4">♩</div>
+  <div class="doodle d5">〜</div>
+  <div class="doodle d6">✦</div>
+  <div class="doodle d7">♬</div>
+  <div class="doodle d8">◈</div>
+
+  <!-- Hidden audio engine — JS controls this -->
+  <audio id="audio"></audio>
+
+  <div class="app-shell">
+
+    <!-- ══════════ LEFT SIDEBAR ══════════ -->
+    <aside class="sidebar">
+
+      <div class="sidebar-logo">
+        <span class="logo-icon">◉</span>
+        <span class="logo-text">Groovepad</span>
+      </div>
+
+      <!-- Playlist nav buttons — built by JS -->
+      <div class="sidebar-section">
+        <div class="section-label">PLAYLISTS</div>
+        <div class="playlist-nav" id="playlistNav"></div>
+      </div>
+
+      <!-- Mood filter tags -->
+      <div class="sidebar-section">
+        <div class="section-label">MOOD</div>
+        <div class="mood-tags">
+          <span class="mood-tag active">All</span>
+          <span class="mood-tag">Chill</span>
+          <span class="mood-tag">Focus</span>
+          <span class="mood-tag">Hype</span>
+        </div>
+      </div>
+
+      <!-- Animated equalizer bars -->
+      <div class="sidebar-section">
+        <div class="section-label">VISUALIZER</div>
+        <div class="eq-bars" id="eqBars">
+          <div class="eq-bar"></div>
+          <div class="eq-bar"></div>
+          <div class="eq-bar"></div>
+          <div class="eq-bar"></div>
+          <div class="eq-bar"></div>
+          <div class="eq-bar"></div>
+          <div class="eq-bar"></div>
+          <div class="eq-bar"></div>
+          <div class="eq-bar"></div>
+          <div class="eq-bar"></div>
+        </div>
+      </div>
+
+      <!-- Stats -->
+      <div class="sidebar-stats">
+        <div class="stat-item">
+          <span class="stat-num">12</span>
+          <span class="stat-lbl">tracks</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-num" id="statPlayed">0</span>
+          <span class="stat-lbl">played</span>
+        </div>
+        <div class="stat-item">
+          <span class="stat-num">3</span>
+          <span class="stat-lbl">lists</span>
+        </div>
+      </div>
+
+    </aside>
+
+    <!-- ══════════ MAIN STAGE ══════════ -->
+    <main class="main-stage">
+
+      <!-- Vinyl record + controls -->
+      <div class="now-playing-hero">
+
+        <!-- Spinning vinyl disc -->
+        <div class="vinyl-wrap">
+          <div class="vinyl-outer paused" id="vinylOuter">
+            <div class="vinyl-groove g1"></div>
+            <div class="vinyl-groove g2"></div>
+            <div class="vinyl-groove g3"></div>
+            <div class="vinyl-center" id="vinylCenter">
+              <span id="artEmoji">🌤️</span>
+            </div>
+          </div>
+          <div class="vinyl-shadow"></div>
+          <!-- Tonearm that lifts/lowers -->
+          <div class="tonearm paused" id="tonearm">
+            <div class="tonearm-needle"></div>
+          </div>
+        </div>
+
+        <!-- Right side: info + controls -->
+        <div class="player-controls-wrap">
+
+          <div class="now-badge">NOW PLAYING</div>
+          <div class="song-title" id="songTitle">Chill Afternoon</div>
+          <div class="song-artist" id="songArtist">Lo-fi Dreams</div>
+
+          <!-- Progress -->
+          <div class="progress-section">
+            <input type="range" id="seekBar" class="seek-range" min="0" value="0" step="0.1" />
+            <div class="time-row">
+              <span id="currentTime">0:00</span>
+              <span id="totalTime">0:00</span>
+            </div>
+          </div>
+
+          <!-- Control buttons -->
+          <div class="controls-row">
+            <button class="ctrl-btn small" id="btnShuffle" title="Shuffle">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="16 3 21 3 21 8"/><line x1="4" y1="20" x2="21" y2="3"/><polyline points="21 16 21 21 16 21"/><line x1="15" y1="15" x2="21" y2="21"/></svg>
+            </button>
+            <button class="ctrl-btn medium" id="btnPrev" title="Previous">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><polygon points="19 20 9 12 19 4 19 20"/><rect x="5" y="4" width="2.5" height="16" rx="1"/></svg>
+            </button>
+            <button class="ctrl-btn play-btn" id="btnPlay" title="Play/Pause">
+              <svg id="iconPlay" width="26" height="26" viewBox="0 0 24 24" fill="currentColor"><polygon points="6 3 20 12 6 21 6 3"/></svg>
+              <svg id="iconPause" width="26" height="26" viewBox="0 0 24 24" fill="currentColor" style="display:none"><rect x="6" y="4" width="4" height="16" rx="1"/><rect x="14" y="4" width="4" height="16" rx="1"/></svg>
+            </button>
+            <button class="ctrl-btn medium" id="btnNext" title="Next">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor"><polygon points="5 4 15 12 5 20 5 4"/><rect x="16.5" y="4" width="2.5" height="16" rx="1"/></svg>
+            </button>
+            <button class="ctrl-btn small" id="btnRepeat" title="Repeat">
+              <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+            </button>
+          </div>
+
+          <!-- Volume -->
+          <div class="volume-row">
+            <span class="vol-icon-wrap" id="volIconWrap">🔊</span>
+            <input type="range" id="volumeBar" class="vol-range" min="0" max="1" step="0.01" value="0.7" />
+            <span class="vol-val" id="volVal">70</span>
+          </div>
+
+        </div>
+      </div>
+
+    </main>
+
+    <!-- ══════════ RIGHT PANEL ══════════ -->
+    <aside class="right-panel">
+
+      <!-- Queue -->
+      <div class="panel-section">
+        <div class="panel-heading">
+          <span>Up Next</span>
+          <span class="panel-count" id="queueCount">4 tracks</span>
+        </div>
+        <div class="queue-list" id="playlist"></div>
+      </div>
+
+      <!-- Keyboard shortcuts -->
+      <div class="shortcuts-card">
+        <div class="shortcuts-title">⌨ Shortcuts</div>
+        <div class="shortcut-row"><kbd>Space</kbd><span>Play / Pause</span></div>
+        <div class="shortcut-row"><kbd>→</kbd><span>Next track</span></div>
+        <div class="shortcut-row"><kbd>←</kbd><span>Prev track</span></div>
+        <div class="shortcut-row"><kbd>S</kbd><span>Shuffle</span></div>
+        <div class="shortcut-row"><kbd>R</kbd><span>Repeat</span></div>
+      </div>
+
+      <!-- Rotating tips -->
+      <div class="tip-card">
+        <div class="tip-emoji">💡</div>
+        <div class="tip-text" id="tipText">Click any track to jump to it instantly.</div>
+      </div>
+
+    </aside>
+
+  </div><!-- end app-shell -->
+
+  <script src="script.js"></script>
+</body>
+</html>
