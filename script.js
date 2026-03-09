@@ -1,42 +1,28 @@
 // ============================================================
 // script.js — Groovepad Music Player
 // ============================================================
-// Sections:
-//   1.  Playlist data (with gradient themes per playlist)
-//   2.  State variables
-//   3.  Grab HTML elements
-//   4.  Helper: formatTime
-//   5.  applyTheme()       — swaps gradient colours per playlist
-//   6.  loadSong()         — loads a song into the player
-//   7.  play() / pause()   — start/stop audio
-//   8.  nextSong()         — advance to next track
-//   9.  prevSong()         — go back a track
-//   10. switchPlaylist()   — switch active playlist
-//   11. renderPlaylist()   — build queue list in right panel
-//   12. buildPlaylistNav() — build sidebar playlist buttons
-//   13. Audio events       — timeupdate, ended
-//   14. Button events      — play, next, prev, shuffle, repeat
-//   15. Tab events         — playlist nav clicks
-//   16. Seek + Volume      — slider interactions
-//   17. Keyboard shortcuts — spacebar, arrows, S, R
-//   18. Rotating tips      — cycles helpful tips
-//   19. Seek bar gradient  — live fill colour on progress bar
-//   20. Init               — runs on page load
+// New features in this version:
+//   - Gradient background wash that shifts per playlist
+//   - ❤ Like button with heart-pop animation + liked chips
+//   - Vibe Meter slider (😴 → 🤯) with live label
+//   - Recently Played log with timestamps
+//   - Keyboard shortcuts (Space, ←→, S, R)
+//   - Rotating mood tags (decorative)
 // ============================================================
 
 
 // ── 1. PLAYLIST DATA ─────────────────────────────────────────
-// Each playlist has:
-//   name    — display name
-//   theme   — gradient colours (g1, g2, g3) that paint the whole UI
-//   songs   — array of song objects
+// Each playlist has a gradient theme: g1, g2, g3
+// These three colours repaint the ENTIRE UI when you switch playlists.
+// They also feed the background gradient wash.
 
 const PLAYLISTS = [
   {
-    name:  "Lo-fi Vibes",
-    emoji: "☀️",
-    // Warm amber/orange gradient — feels like a sunny afternoon
+    name: "Lo-fi Vibes", emoji: "☀️",
+    // Warm amber — sunny, relaxed afternoon feel
     theme: { g1: "#f97316", g2: "#fb923c", g3: "#fbbf24" },
+    // bgWash: the soft diagonal gradient across the whole page
+    bgWash: "linear-gradient(135deg, rgba(249,115,22,0.10) 0%, rgba(251,146,60,0.06) 40%, rgba(13,13,18,0) 80%)",
     songs: [
       { title: "Chill Afternoon", artist: "Lo-fi Dreams",   duration: "2:34", emoji: "🌤️", src: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-1.mp3" },
       { title: "Rainy Window",    artist: "Lo-fi Dreams",   duration: "3:05", emoji: "🌧️", src: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-6.mp3"  },
@@ -45,10 +31,10 @@ const PLAYLISTS = [
     ]
   },
   {
-    name:  "Night Drive",
-    emoji: "🌙",
-    // Cool cyan/blue gradient — feels like city lights at night
+    name: "Night Drive", emoji: "🌙",
+    // Cool cyan-to-violet — city lights, night highways
     theme: { g1: "#06b6d4", g2: "#3b82f6", g3: "#8b5cf6" },
+    bgWash: "linear-gradient(135deg, rgba(6,182,212,0.10) 0%, rgba(139,92,246,0.06) 40%, rgba(13,13,18,0) 80%)",
     songs: [
       { title: "Midnight Drive",  artist: "Neon Pulse",   duration: "3:12", emoji: "🌙", src: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-2.mp3" },
       { title: "City Lights",     artist: "Neon Pulse",   duration: "4:00", emoji: "🏙️", src: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-8.mp3" },
@@ -57,10 +43,10 @@ const PLAYLISTS = [
     ]
   },
   {
-    name:  "Focus Mode",
-    emoji: "🧘",
-    // Deep teal/green gradient — calm and productive
+    name: "Focus Mode", emoji: "🧘",
+    // Deep teal-green — calm, grounded, productive
     theme: { g1: "#10b981", g2: "#14b8a6", g3: "#6366f1" },
+    bgWash: "linear-gradient(135deg, rgba(16,185,129,0.10) 0%, rgba(99,102,241,0.06) 40%, rgba(13,13,18,0) 80%)",
     songs: [
       { title: "Ocean Breath",    artist: "Blue Horizon",  duration: "4:01", emoji: "🌊", src: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-5.mp3"  },
       { title: "Deep Current",    artist: "Blue Horizon",  duration: "3:48", emoji: "🔵", src: "https://www.soundhelix.com/examples/mp3/SoundHelix-Song-10.mp3" },
@@ -70,93 +56,96 @@ const PLAYLISTS = [
   },
 ];
 
-// Tips that rotate in the tip card
-const TIPS = [
-  "Click any track in the queue to jump to it instantly.",
-  "Press Space to play or pause without touching your mouse.",
-  "Shuffle picks a random track — never the same one twice.",
-  "Press S to toggle shuffle, R to toggle repeat.",
-  "Add your own MP3s by editing the src values in script.js.",
-  "The vinyl spins while your music plays ◉",
-  "Use ← → arrow keys to skip between tracks.",
-];
+// Vibe labels for each slider position (0–4)
+const VIBE_LABELS = ["😴 Sleepy", "😌 Chill", "🕺 Groovy", "🔥 Hype", "🤯 Wild"];
 
 
-// ── 2. STATE VARIABLES ───────────────────────────────────────
-let activePlaylist = 0;     // index of the currently selected playlist
-let currentIndex   = 0;     // index of current song within the playlist
+// ── 2. STATE ─────────────────────────────────────────────────
+let activePlaylist = 0;
+let currentIndex   = 0;
 let isPlaying      = false;
 let isShuffle      = false;
 let isRepeat       = false;
-let playedCount    = 0;     // counts total songs played (for the stat)
+let playedCount    = 0;
+let likedSongs     = [];    // array of liked song titles
+let recentPlays    = [];    // array of { title, emoji, time } objects
 
-// Helper: returns the songs array for the active playlist
-function getCurrentSongs() {
-  return PLAYLISTS[activePlaylist].songs;
-}
+function getCurrentSongs() { return PLAYLISTS[activePlaylist].songs; }
 
 
-// ── 3. GRAB HTML ELEMENTS ────────────────────────────────────
-const audio          = document.getElementById("audio");
-const vinylOuter     = document.getElementById("vinylOuter");
-const tonearm        = document.getElementById("tonearm");
-const artEmoji       = document.getElementById("artEmoji");
-const vinylCenter    = document.getElementById("vinylCenter");
-const songTitle      = document.getElementById("songTitle");
-const songArtist     = document.getElementById("songArtist");
-const seekBar        = document.getElementById("seekBar");
-const currentTimeEl  = document.getElementById("currentTime");
-const totalTimeEl    = document.getElementById("totalTime");
-const btnPlay        = document.getElementById("btnPlay");
-const iconPlay       = document.getElementById("iconPlay");
-const iconPause      = document.getElementById("iconPause");
-const btnPrev        = document.getElementById("btnPrev");
-const btnNext        = document.getElementById("btnNext");
-const btnShuffle     = document.getElementById("btnShuffle");
-const btnRepeat      = document.getElementById("btnRepeat");
-const volumeBar      = document.getElementById("volumeBar");
-const volIconWrap    = document.getElementById("volIconWrap");
-const volVal         = document.getElementById("volVal");
-const playlistEl     = document.getElementById("playlist");
-const playlistNav    = document.getElementById("playlistNav");
-const eqBars         = document.getElementById("eqBars");
-const statPlayed     = document.getElementById("statPlayed");
-const queueCount     = document.getElementById("queueCount");
-const tipText        = document.getElementById("tipText");
+// ── 3. GRAB ELEMENTS ─────────────────────────────────────────
+const audio         = document.getElementById("audio");
+const bgWashEl      = document.getElementById("bgWash");
+const vinylOuter    = document.getElementById("vinylOuter");
+const tonearm       = document.getElementById("tonearm");
+const artEmoji      = document.getElementById("artEmoji");
+const songTitle     = document.getElementById("songTitle");
+const songArtist    = document.getElementById("songArtist");
+const seekBar       = document.getElementById("seekBar");
+const currentTimeEl = document.getElementById("currentTime");
+const totalTimeEl   = document.getElementById("totalTime");
+const btnPlay       = document.getElementById("btnPlay");
+const iconPlay      = document.getElementById("iconPlay");
+const iconPause     = document.getElementById("iconPause");
+const btnPrev       = document.getElementById("btnPrev");
+const btnNext       = document.getElementById("btnNext");
+const btnShuffle    = document.getElementById("btnShuffle");
+const btnRepeat     = document.getElementById("btnRepeat");
+const volumeBar     = document.getElementById("volumeBar");
+const volIconWrap   = document.getElementById("volIconWrap");
+const volVal        = document.getElementById("volVal");
+const playlistEl    = document.getElementById("playlist");
+const playlistNav   = document.getElementById("playlistNav");
+const eqBars        = document.getElementById("eqBars");
+const statPlayed    = document.getElementById("statPlayed");
+const queueCount    = document.getElementById("queueCount");
+const likeBtn       = document.getElementById("likeBtn");
+const heartIcon     = document.getElementById("heartIcon");
+const likedChips    = document.getElementById("likedChips");
+const vibeMeter     = document.getElementById("vibeMeter");
+const vibeLabel     = document.getElementById("vibeLabel");
+const recentList    = document.getElementById("recentList");
 
 
 // ── 4. HELPER: formatTime ────────────────────────────────────
-// Converts seconds to "m:ss"  e.g. formatTime(94) → "1:34"
-function formatTime(seconds) {
-  if (isNaN(seconds)) return "0:00";
-  const m = Math.floor(seconds / 60);
-  const s = Math.floor(seconds % 60);
-  return m + ":" + String(s).padStart(2, "0");
+function formatTime(s) {
+  if (isNaN(s)) return "0:00";
+  const m = Math.floor(s / 60);
+  const sec = Math.floor(s % 60);
+  return m + ":" + String(sec).padStart(2, "0");
+}
+
+// Helper: returns "2:34 PM" style time string for recent plays
+function getTimeStamp() {
+  const now = new Date();
+  const h = now.getHours() % 12 || 12;
+  const m = String(now.getMinutes()).padStart(2, "0");
+  const ampm = now.getHours() >= 12 ? "PM" : "AM";
+  return h + ":" + m + " " + ampm;
 }
 
 
 // ── 5. applyTheme(playlistIndex) ─────────────────────────────
-// Swaps the CSS gradient variables to match the active playlist.
-// This repaints the blobs, buttons, vinyl, progress bar — everything.
+// Changes ALL gradient colours across the UI + background wash.
 
 function applyTheme(playlistIndex) {
-  const theme = PLAYLISTS[playlistIndex].theme;
+  const pl    = PLAYLISTS[playlistIndex];
+  const theme = pl.theme;
   const root  = document.documentElement;
 
-  // setProperty updates a CSS variable defined in :root {}
   root.style.setProperty("--g1",     theme.g1);
   root.style.setProperty("--g2",     theme.g2);
   root.style.setProperty("--g3",     theme.g3);
   root.style.setProperty("--accent", theme.g1);
 
-  // Update the seek bar fill gradient too
+  // Apply the background gradient wash — a soft tinted diagonal sweep
+  bgWashEl.style.background = pl.bgWash;
+
   updateSeekBarGradient();
 }
 
 
 // ── 6. loadSong(index) ───────────────────────────────────────
-// Loads a song from the current playlist into the audio element.
-
 function loadSong(index) {
   const songs = getCurrentSongs();
   const song  = songs[index];
@@ -165,55 +154,42 @@ function loadSong(index) {
   audio.volume = volumeBar.value;
   audio.load();
 
-  // Update on-screen text
   songTitle.textContent  = song.title;
   songArtist.textContent = song.artist;
   artEmoji.textContent   = song.emoji;
 
-  // Reset progress bar
   seekBar.value = 0;
   currentTimeEl.textContent = "0:00";
   totalTimeEl.textContent   = song.duration;
-  updateSeekBarGradient();
 
-  // Rebuild the queue to highlight the new active row
+  // Update the like button state for the new song
+  updateLikeButton();
+
+  updateSeekBarGradient();
   renderPlaylist();
 }
 
 
-// ── 7. play() and pause() ────────────────────────────────────
-
+// ── 7. play() / pause() ──────────────────────────────────────
 function play() {
-  audio.play().catch(function() {});  // .catch silences autoplay policy errors
+  audio.play().catch(function() {});
   isPlaying = true;
-
-  // Swap play/pause SVG icons
   iconPlay.style.display  = "none";
   iconPause.style.display = "block";
-
-  // Start vinyl spinning + drop tonearm
   vinylOuter.classList.remove("paused");
   tonearm.classList.remove("paused");
-
-  // Animate the EQ bars
   eqBars.classList.add("playing");
-
-  renderPlaylist();   // refresh to show 🎵 on active row
+  renderPlaylist();
 }
 
 function pause() {
   audio.pause();
   isPlaying = false;
-
   iconPlay.style.display  = "block";
   iconPause.style.display = "none";
-
-  // Stop vinyl + lift tonearm
   vinylOuter.classList.add("paused");
   tonearm.classList.add("paused");
-
   eqBars.classList.remove("playing");
-
   renderPlaylist();
 }
 
@@ -222,10 +198,9 @@ function togglePlayPause() {
 }
 
 
-// ── 8. nextSong() ────────────────────────────────────────────
+// ── 8. nextSong() / prevSong() ───────────────────────────────
 function nextSong() {
   const songs = getCurrentSongs();
-
   if (isShuffle) {
     let r;
     do { r = Math.floor(Math.random() * songs.length); } while (r === currentIndex);
@@ -233,18 +208,15 @@ function nextSong() {
   } else {
     currentIndex = (currentIndex + 1) % songs.length;
   }
-
   loadSong(currentIndex);
   play();
+  addToRecent();
   playedCount++;
   statPlayed.textContent = playedCount;
 }
 
-
-// ── 9. prevSong() ────────────────────────────────────────────
 function prevSong() {
   const songs = getCurrentSongs();
-
   if (audio.currentTime > 3) {
     audio.currentTime = 0;
   } else {
@@ -255,29 +227,19 @@ function prevSong() {
 }
 
 
-// ── 10. switchPlaylist(playlistIndex) ────────────────────────
-// Switches to a different playlist, applies its gradient theme.
-
-function switchPlaylist(playlistIndex) {
-  activePlaylist = playlistIndex;
+// ── 9. switchPlaylist(index) ─────────────────────────────────
+function switchPlaylist(index) {
+  activePlaylist = index;
   currentIndex   = 0;
-
-  applyTheme(playlistIndex);
-
-  // Rebuild sidebar nav so the correct button is highlighted
+  applyTheme(index);
   buildPlaylistNav();
-
-  // Update queue count
   queueCount.textContent = getCurrentSongs().length + " tracks";
-
   pause();
   loadSong(currentIndex);
 }
 
 
-// ── 11. renderPlaylist() ─────────────────────────────────────
-// Builds the track rows in the right-panel queue.
-
+// ── 10. renderPlaylist() ─────────────────────────────────────
 function renderPlaylist() {
   playlistEl.innerHTML = "";
   const songs = getCurrentSongs();
@@ -288,11 +250,11 @@ function renderPlaylist() {
     row.className = "track-row" + (index === currentIndex ? " active" : "");
 
     row.innerHTML = `
-      <div class="track-dot" style="background: ${theme.g1}22; border: 1.5px solid ${theme.g1}44;">
+      <div class="track-dot" style="background:${theme.g1}22; border:1.5px solid ${theme.g1}44;">
         ${index === currentIndex && isPlaying ? "🎵" : song.emoji}
       </div>
       <div class="track-info">
-        <div class="track-name" style="color: ${index === currentIndex ? theme.g1 : ""}">
+        <div class="track-name" style="color:${index === currentIndex ? theme.g1 : ""}">
           ${song.title}
         </div>
         <div class="track-artist">${song.artist}</div>
@@ -304,6 +266,7 @@ function renderPlaylist() {
       currentIndex = index;
       loadSong(currentIndex);
       play();
+      addToRecent();
       playedCount++;
       statPlayed.textContent = playedCount;
     });
@@ -313,42 +276,129 @@ function renderPlaylist() {
 }
 
 
-// ── 12. buildPlaylistNav() ───────────────────────────────────
-// Builds the sidebar playlist buttons.
-
+// ── 11. buildPlaylistNav() ───────────────────────────────────
 function buildPlaylistNav() {
   playlistNav.innerHTML = "";
-
   PLAYLISTS.forEach(function(pl, index) {
     const btn = document.createElement("button");
     btn.className = "pl-nav-btn" + (index === activePlaylist ? " active" : "");
-
-    btn.innerHTML = `
-      <div class="pl-nav-dot"></div>
-      <span>${pl.emoji} ${pl.name}</span>
-    `;
-
-    btn.addEventListener("click", function() {
-      switchPlaylist(index);
-    });
-
+    btn.innerHTML = `<div class="pl-nav-dot"></div><span>${pl.emoji} ${pl.name}</span>`;
+    btn.addEventListener("click", function() { switchPlaylist(index); });
     playlistNav.appendChild(btn);
   });
 }
 
 
-// ── 13. AUDIO EVENTS ─────────────────────────────────────────
+// ── 12. LIKE BUTTON ─────────────────────────────────────────
+// Toggles the current song in/out of the likedSongs array.
+// Shows a chip below for each liked song.
 
-// Fires ~4x/second while playing — updates seek bar and time
+likeBtn.addEventListener("click", function() {
+  const songs = getCurrentSongs();
+  const song  = songs[currentIndex];
+
+  const alreadyLiked = likedSongs.indexOf(song.title) !== -1;
+
+  if (alreadyLiked) {
+    // Remove from liked
+    likedSongs = likedSongs.filter(function(t) { return t !== song.title; });
+    likeBtn.classList.remove("liked");
+    heartIcon.textContent = "♡";
+  } else {
+    // Add to liked
+    likedSongs.push(song.title);
+    likeBtn.classList.add("liked");
+    heartIcon.textContent = "♥";
+  }
+
+  renderLikedChips();
+});
+
+// Re-check liked state whenever song changes
+function updateLikeButton() {
+  const songs = getCurrentSongs();
+  const song  = songs[currentIndex];
+  const liked = likedSongs.indexOf(song.title) !== -1;
+  likeBtn.classList.toggle("liked", liked);
+  heartIcon.textContent = liked ? "♥" : "♡";
+}
+
+// Renders the row of liked-song chips
+function renderLikedChips() {
+  likedChips.innerHTML = "";
+  likedSongs.forEach(function(title) {
+    const chip = document.createElement("div");
+    chip.className = "liked-chip";
+    chip.textContent = title;
+    chip.title = title;
+    likedChips.appendChild(chip);
+  });
+}
+
+
+// ── 13. VIBE METER ──────────────────────────────────────────
+// A fun slider (😴 → 🤯) — purely interactive, no audio effect.
+// Great beginner example of reading a slider's value in real time.
+
+vibeMeter.addEventListener("input", function() {
+  const val = parseInt(vibeMeter.value);
+  vibeLabel.textContent = VIBE_LABELS[val];
+});
+
+
+// ── 14. RECENTLY PLAYED ──────────────────────────────────────
+// Logs each song play with a timestamp. Max 4 shown.
+
+function addToRecent() {
+  const songs = getCurrentSongs();
+  const song  = songs[currentIndex];
+
+  // Prepend new entry (newest first)
+  recentPlays.unshift({
+    title: song.title,
+    emoji: song.emoji,
+    time:  getTimeStamp()
+  });
+
+  // Keep only the last 4
+  if (recentPlays.length > 4) { recentPlays.pop(); }
+
+  renderRecentPlays();
+}
+
+function renderRecentPlays() {
+  recentList.innerHTML = "";
+
+  if (recentPlays.length === 0) {
+    recentList.innerHTML = '<div class="recent-empty">Nothing played yet — hit play! 🎵</div>';
+    return;
+  }
+
+  recentPlays.forEach(function(item) {
+    const el = document.createElement("div");
+    el.className = "recent-item";
+    el.innerHTML = `
+      <div class="recent-emoji">${item.emoji}</div>
+      <div class="recent-info">
+        <div class="recent-name">${item.title}</div>
+        <div class="recent-time">${item.time}</div>
+      </div>
+    `;
+    recentList.appendChild(el);
+  });
+}
+
+
+// ── 15. AUDIO EVENTS ─────────────────────────────────────────
+
 audio.addEventListener("timeupdate", function() {
   seekBar.max   = audio.duration || 0;
   seekBar.value = audio.currentTime;
   currentTimeEl.textContent = formatTime(audio.currentTime);
   totalTimeEl.textContent   = formatTime(audio.duration);
-  updateSeekBarGradient();  // keeps the fill colour in sync
+  updateSeekBarGradient();
 });
 
-// Fires when the song naturally ends
 audio.addEventListener("ended", function() {
   if (isRepeat) {
     audio.currentTime = 0;
@@ -359,10 +409,14 @@ audio.addEventListener("ended", function() {
 });
 
 
-// ── 14. BUTTON EVENTS ────────────────────────────────────────
+// ── 16. BUTTON EVENTS ────────────────────────────────────────
 
 btnPlay.addEventListener("click", togglePlayPause);
-btnNext.addEventListener("click", function() { nextSong(); playedCount++; statPlayed.textContent = playedCount; });
+
+btnNext.addEventListener("click", function() {
+  nextSong();
+});
+
 btnPrev.addEventListener("click", prevSong);
 
 btnShuffle.addEventListener("click", function() {
@@ -375,7 +429,7 @@ btnRepeat.addEventListener("click", function() {
   btnRepeat.classList.toggle("active", isRepeat);
 });
 
-// Mood tags — just visual for now (decorative interaction)
+// Mood tags — decorative interaction
 document.querySelectorAll(".mood-tag").forEach(function(tag) {
   tag.addEventListener("click", function() {
     document.querySelectorAll(".mood-tag").forEach(function(t) { t.classList.remove("active"); });
@@ -384,14 +438,13 @@ document.querySelectorAll(".mood-tag").forEach(function(tag) {
 });
 
 
-// ── 15. SEEK BAR ─────────────────────────────────────────────
+// ── 17. SEEK + VOLUME ────────────────────────────────────────
+
 seekBar.addEventListener("input", function() {
   audio.currentTime = seekBar.value;
   updateSeekBarGradient();
 });
 
-// Updates the seek bar track fill colour as a CSS custom property
-// so the filled portion shows the gradient colour
 function updateSeekBarGradient() {
   const max = parseFloat(seekBar.max) || 1;
   const val = parseFloat(seekBar.value) || 0;
@@ -399,8 +452,6 @@ function updateSeekBarGradient() {
   seekBar.style.setProperty("--seek-pct", pct);
 }
 
-
-// ── 16. VOLUME ───────────────────────────────────────────────
 volumeBar.addEventListener("input", function() {
   const vol = parseFloat(volumeBar.value);
   audio.volume = vol;
@@ -411,55 +462,20 @@ volumeBar.addEventListener("input", function() {
 });
 
 
-// ── 17. KEYBOARD SHORTCUTS ───────────────────────────────────
-// Makes the player controllable without the mouse.
-// e.key gives us the key name as a string.
-
+// ── 18. KEYBOARD SHORTCUTS ───────────────────────────────────
 document.addEventListener("keydown", function(e) {
-  // Don't fire if user is typing in an input
   if (e.target.tagName === "INPUT") return;
-
-  if (e.key === " " || e.key === "Spacebar") {
-    e.preventDefault();   // stops the page from scrolling on spacebar
-    togglePlayPause();
-  }
+  if (e.key === " " || e.key === "Spacebar") { e.preventDefault(); togglePlayPause(); }
   if (e.key === "ArrowRight") { e.preventDefault(); nextSong(); }
   if (e.key === "ArrowLeft")  { e.preventDefault(); prevSong(); }
-  if (e.key === "s" || e.key === "S") {
-    isShuffle = !isShuffle;
-    btnShuffle.classList.toggle("active", isShuffle);
-  }
-  if (e.key === "r" || e.key === "R") {
-    isRepeat = !isRepeat;
-    btnRepeat.classList.toggle("active", isRepeat);
-  }
+  if (e.key === "s" || e.key === "S") { isShuffle = !isShuffle; btnShuffle.classList.toggle("active", isShuffle); }
+  if (e.key === "r" || e.key === "R") { isRepeat  = !isRepeat;  btnRepeat.classList.toggle("active", isRepeat);  }
 });
 
 
-// ── 18. ROTATING TIPS ────────────────────────────────────────
-// Cycles through the TIPS array every 6 seconds.
-// setInterval runs a function repeatedly at a given interval (ms).
-
-let tipIndex = 0;
-setInterval(function() {
-  tipIndex = (tipIndex + 1) % TIPS.length;
-  tipText.style.opacity = "0";
-  // Wait for fade out, then swap text and fade back in
-  setTimeout(function() {
-    tipText.textContent  = TIPS[tipIndex];
-    tipText.style.opacity = "1";
-  }, 300);
-}, 6000);
-
-// Add transition to tip text for smooth fade
-tipText.style.transition = "opacity .3s";
-
-
 // ── 19. INIT ─────────────────────────────────────────────────
-// Run once on page load: build the sidebar nav,
-// apply the first playlist's theme, load the first song.
-
 buildPlaylistNav();
 applyTheme(0);
 loadSong(currentIndex);
 queueCount.textContent = getCurrentSongs().length + " tracks";
+renderRecentPlays();
